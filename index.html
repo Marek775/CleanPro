@@ -14,6 +14,28 @@
 
 /* Shift desktop HERO copy closer to the left edge */
 @media(min-width:851px){.hero-inner{margin-left:clamp(32px,7vw,130px);width:calc(100% - clamp(32px,7vw,130px))}.hero-copy{padding-left:0}}
+
+/* Mobile HERO: image-first conversion layout */
+@media(max-width:550px){
+ .topbar{font-size:9px;padding:7px 10px;line-height:1.25}
+ .nav{min-height:60px}.nav .logo{font-size:23px}.nav-cta{font-size:11px;padding:10px 12px}
+ .hero-inner{display:flex;flex-direction:column;min-height:0;padding-left:18px;padding-right:18px}
+ .hero-copy{display:contents}
+ .hero .eyebrow{order:1;margin-top:27px;font-size:10px;letter-spacing:.12em}
+ .hero h1{order:2;font-size:clamp(33px,9.3vw,43px);line-height:1.08;letter-spacing:-.055em;margin:10px 0 13px;max-width:410px}
+ .hero-media{order:3;margin:0 -18px;min-height:0;height:clamp(255px,73vw,380px);overflow:hidden;background:#103b2a}
+ .hero-media img{display:block!important;opacity:1;width:100%;height:100%;object-fit:cover;object-position:57% 59%}
+ .hero-media:after{display:block;content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,#09291d 0%,transparent 19%,transparent 77%,#09291d 100%);pointer-events:none}
+ .hero-tag{bottom:12px;right:14px;font-size:9px;padding:8px 10px}
+ .hero .hero-intro{order:4;margin:16px 0 13px;font-size:13px;line-height:1.5;color:#d7e5d9}
+ .hero-features{order:5;display:flex;gap:6px;margin:0 0 15px;flex-wrap:wrap}
+ .hero-features span{font-size:10px;padding:7px 8px}
+ .hero-offer{order:6;margin:0 0 14px;gap:12px}.hero-price{font-size:36px}.hero-old{font-size:13px}.hero-sale{font-size:12px}
+ .hero-actions{order:7;width:100%;margin:0 0 5px}.hero-actions .btn{width:100%;min-width:0;padding:14px 18px;font-size:14px}
+ .hero-actions .btn.outline{display:none}
+ .hero .hero-legal{order:8;margin:7px 0 23px;font-size:10px;line-height:1.4;color:#c6d7c8}
+ .mobile-bar{gap:12px}.mobile-bar strong{font-size:17px}.mobile-bar .btn{padding:11px 15px;font-size:12px}
+}
 </style></head><body>
 <div class="topbar">CLEANPRO · PROJEKT DEMONSTRACYJNY — ZAMÓWIENIA NIE SĄ REALIZOWANE</div>
 <header class="wrap nav"><a href="#start" class="logo" aria-label="CleanPro – strona główna">Clean<span>Pro.</span></a><nav class="links" aria-label="Menu główne"><a href="#jak-dziala">Jak działa</a><a href="#korzysci">Korzyści</a><a href="#szczegoly">Produkt</a><a href="#faq">FAQ</a><a class="btn dark nav-cta" href="#oferta">Zobacz ofertę ↗</a></nav></header>
@@ -29,5 +51,5 @@
 <section class="section" id="faq"><div class="wrap"><div class="center"><span class="eyebrow">Warto wiedzieć</span><h2 class="h2">Najczęstsze pytania.</h2><p class="lead">Rzetelne odpowiedzi bez obietnic, których nie potwierdziliśmy testami.</p></div><div class="faq"><details><summary>Czy CleanPro usuwa mech z kostki brukowej?</summary><p>Przedstawiona strona jest projektem demonstracyjnym. Skuteczność usuwania mchu wymaga testów wybranego modelu na rzeczywistej nawierzchni.</p></details><details><summary>Czy szczotka jest bezpieczna dla każdego rodzaju kostki?</summary><p>Nie można tego zagwarantować bez danych producenta. Przed użyciem należy sprawdzić zgodność z nawierzchnią i wykonać próbę w mało widocznym miejscu.</p></details><details><summary>Co znajduje się w zestawie?</summary><p>Grafiki pokazują przykładowy zestaw. Ostateczną zawartość opakowania ustalimy po wyborze produktu i dostawcy.</p></details><details><summary>Jakie są parametry i rodzaj zasilania?</summary><p>Specyfikacja techniczna nie jest jeszcze potwierdzona. Nie publikujemy fikcyjnych wartości mocy, czasu pracy ani wydajności.</p></details><details><summary>Czy mogę już zamówić produkt?</summary><p>Nie. To demonstracyjna wersja sklepu. Zamówienia, płatności i dostawy nie są obecnie realizowane.</p></details><details><summary>Jak będą wyglądały dostawa, zwroty i reklamacje?</summary><p>Warunki zostaną opublikowane przed uruchomieniem sprzedaży, zgodnie z obowiązującymi przepisami i rzeczywistymi możliwościami logistycznymi.</p></details></div></div></section>
 <section class="offer" id="oferta"><div class="wrap"><div class="offer-card"><div class="offer-copy"><span class="eyebrow">Oferta demonstracyjna</span><h2>Twój taras zasługuje na więcej.</h2><p>CleanPro – koncepcja urządzenia do pielęgnacji nawierzchni wokół domu.</p><div class="price">Cena wkrótce</div><div class="feature-list"><div><span class="check">✓</span>Prezentacja zestawu i akcesoriów</div><div><span class="check">✓</span>Przejrzysta specyfikacja po wyborze modelu</div><div><span class="check">✓</span>Warunki zakupu przed startem sprzedaży</div></div><a href="#start" class="btn">Wróć do produktu ↑</a><div class="disclaimer">Sklep demonstracyjny. Brak możliwości złożenia zamówienia i dokonania płatności.</div></div><div class="offer-photo"><img src="assets/clean_terrace.webp" alt="Wizualizacja czystego tarasu" loading="lazy"></div></div></div></section>
 </main><footer class="footer"><div class="wrap"><div class="footer-grid"><div><div class="logo">Clean<span>Pro.</span></div><p>Projekt demonstracyjny sklepu typu one-product. Materiały produktowe są wizualizacjami, nie ofertą handlową.</p></div><div><b>Na skróty</b><p><a href="#jak-dziala">Jak działa</a></p><p><a href="#szczegoly">Produkt</a></p><p><a href="#faq">FAQ</a></p></div><div><b>Informacje</b><p>Sprzedaż nie została uruchomiona.</p><p>Regulamin, polityka prywatności i dane sprzedawcy zostaną dodane przed startem.</p></div></div><div class="footer-bottom">© CleanPro · projekt demonstracyjny · wszystkie grafiki mają charakter poglądowy</div></div></footer>
-<div class="mobile-bar"><div><small>CleanPro</small><strong>Cena wkrótce</strong></div><a class="btn" href="#oferta">Zobacz ofertę ↗</a></div>
+<div class="mobile-bar"><div><small>CleanPro · cena przykładowa</small><strong>199,00 zł</strong></div><a class="btn" href="#oferta">Zobacz ofertę ↗</a></div>
 </body></html>
