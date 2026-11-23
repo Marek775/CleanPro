@@ -11,6 +11,9 @@
 
 /* HERO: soften the left-side color block and keep photo continuous */
 @media(min-width:851px){.hero:before{background-position:60% 55%}.hero:after{background:linear-gradient(90deg,rgba(0,0,0,.54) 0%,rgba(0,0,0,.46) 23%,rgba(0,0,0,.31) 41%,rgba(0,0,0,.08) 66%,transparent 100%)}.hero{background-color:transparent}.hero-copy{background:transparent}}
+
+/* Shift desktop HERO copy closer to the left edge */
+@media(min-width:851px){.hero-inner{margin-left:clamp(32px,7vw,130px);width:calc(100% - clamp(32px,7vw,130px))}.hero-copy{padding-left:0}}
 </style></head><body>
 <div class="topbar">CLEANPRO · PROJEKT DEMONSTRACYJNY — ZAMÓWIENIA NIE SĄ REALIZOWANE</div>
 <header class="wrap nav"><a href="#start" class="logo" aria-label="CleanPro – strona główna">Clean<span>Pro.</span></a><nav class="links" aria-label="Menu główne"><a href="#jak-dziala">Jak działa</a><a href="#korzysci">Korzyści</a><a href="#szczegoly">Produkt</a><a href="#faq">FAQ</a><a class="btn dark nav-cta" href="#oferta">Zobacz ofertę ↗</a></nav></header>
