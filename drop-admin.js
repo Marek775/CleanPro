@@ -11,15 +11,35 @@ async function request(path,method='GET',body,access=token){
  if(!r.ok){const e=new Error('Request failed');e.status=r.status;throw e}
  return r.status===204?null:r.json()
 }
-function clear(){generation++;token=null;$('rows').replaceChildren();$('summary').textContent='';$('panel').hidden=true;$('login').hidden=false;$('password').value=''}
+function clear(){generation++;token=null;current=[];if($('details')?.open)$('details').close();if($('detailItems'))$('detailItems').replaceChildren();$('rows').replaceChildren();$('summary').textContent='';$('panel').hidden=true;$('login').hidden=false;$('password').value=''}
 async function load(){
  const g=generation;
  const rows=await request('/rest/v1/orders?select=id,store_id,created_at,total_grosz,currency,payment_status,fulfillment_status&order=created_at.desc&limit=100');
  if(g!==generation||!token)return;
- $('rows').replaceChildren();
- for(const o of rows){const tr=document.createElement('tr');for(const v of [o.id,o.store_id,new Date(o.created_at).toLocaleString('pl-PL'),(Number(o.total_grosz)/100).toLocaleString('pl-PL',{style:'currency',currency:'PLN'}),o.payment_status,o.fulfillment_status]){const td=document.createElement('td');td.textContent=v;tr.append(td)}$('rows').append(tr)}
- $('summary').textContent='Wyświetlono '+rows.length+' najnowszych zamówień (maks. 100).';
+ render(rows);
 }
+let current=[];
+const money=n=>(Number(n)/100).toLocaleString('pl-PL',{style:'currency',currency:'PLN'});
+const labels={pending:'Oczekująca',paid:'Opłacone',failed:'Nieudana',refunded:'Zwrot',new:'Nowe',processing:'W realizacji',shipped:'Wysłane',delivered:'Dostarczone',cancelled:'Anulowane'};
+function render(rows){
+ current=rows;
+ const filtered=rows.filter(o=>(!$('storeFilter')?.value||o.store_id===$('storeFilter').value)&&(! $('statusFilter')?.value||o.fulfillment_status===$('statusFilter').value)&&(! $('searchOrder')?.value||o.id.toLowerCase().includes($('searchOrder').value.toLowerCase().trim())));
+ $('rows').replaceChildren();
+ for(const o of filtered){const tr=document.createElement('tr');for(const v of [o.id,o.store_id,new Date(o.created_at).toLocaleString('pl-PL'),money(o.total_grosz),labels[o.payment_status]||o.payment_status,labels[o.fulfillment_status]||o.fulfillment_status]){const td=document.createElement('td');td.textContent=v;tr.append(td)}const td=document.createElement('td'),btn=document.createElement('button');btn.textContent='Szczegóły';btn.onclick=()=>details(o);td.append(btn);tr.append(td);$('rows').append(tr)}
+ $('summary').textContent='Widoczne: '+filtered.length+' / '+rows.length+' najnowszych zamówień (maks. 100). Dane testowe.';
+ if($('kpiCount')){$('kpiCount').textContent=filtered.length;$('kpiValue').textContent=money(filtered.filter(o=>o.fulfillment_status!=='cancelled').reduce((n,o)=>n+Number(o.total_grosz),0));$('kpiPaid').textContent=money(filtered.filter(o=>o.payment_status==='paid'&&o.fulfillment_status!=='cancelled').reduce((n,o)=>n+Number(o.total_grosz),0));$('kpiNew').textContent=filtered.filter(o=>o.fulfillment_status==='new').length}
+}
+let detailGeneration=0;
+async function details(o){
+ const g=generation,d=++detailGeneration,dialog=$('details');if(!dialog)return;
+ $('detailTitle').textContent='Zamówienie '+o.id;
+ $('detailItems').textContent='Pobieranie pozycji…';dialog.showModal();
+ try{const items=await request('/rest/v1/order_items?select=name,sku,quantity,unit_grosz&order_id=eq.'+encodeURIComponent(o.id));if(g!==generation||d!==detailGeneration||!token||!dialog.open)return;
+ $('detailItems').replaceChildren();for(const i of items){const p=document.createElement('p');p.textContent=i.name+' · '+i.quantity+' × '+money(i.unit_grosz);$('detailItems').append(p)}if(!items.length)$('detailItems').textContent='Brak pozycji.';
+ }catch{if(g===generation&&d===detailGeneration)$('detailItems').textContent='Nie udało się pobrać pozycji.'}
+}
+for(const id of ['storeFilter','statusFilter','searchOrder'])$(id)?.addEventListener('input',()=>render(current));
+$('closeDetails')?.addEventListener('click',()=>$('details').close());
 $('login').hidden=false;msg('Zaloguj się na konto administratora.');
 $('form').addEventListener('submit',async e=>{
  e.preventDefault();$('submit').disabled=true;const g=++generation;
