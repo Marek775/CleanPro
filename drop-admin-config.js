@@ -1,1 +1,1 @@
-window.DropAdminConfig=Object.freeze({url:"",publishableKey:""});
+window.DropAdminConfig=Object.freeze({url:"https://uxyqmwhnthlgzkfgszav.supabase.co",publishableKey:"sb_publishable_XTPV8_bvPFIFAXMraj7Zeg_qu2Fm8YV"});
