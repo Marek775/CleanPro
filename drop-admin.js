@@ -11,10 +11,10 @@ async function request(path,method='GET',body,access=token){
  if(!r.ok){const e=new Error('Request failed');e.status=r.status;throw e}
  return r.status===204?null:r.json()
 }
-function clear(){generation++;token=null;current=[];if($('details')?.open)$('details').close();if($('detailItems'))$('detailItems').replaceChildren();$('rows').replaceChildren();$('summary').textContent='';$('panel').hidden=true;$('login').hidden=false;$('password').value=''}
+function clear(){generation++;token=null;current=[];if($('details')?.open)$('details').close();$('detailItems').replaceChildren();$('detailHistory').replaceChildren();$('detailSummary').textContent='';$('rows').replaceChildren();$('summary').textContent='';$('panel').hidden=true;$('login').hidden=false;$('password').value=''}
 async function load(){
  const g=generation;
- const rows=await request('/rest/v1/orders?select=id,store_id,created_at,total_grosz,currency,payment_status,fulfillment_status&order=created_at.desc&limit=100');
+ const rows=await request('/rest/v1/orders?select=id,store_id,created_at,total_grosz,currency,payment_status,fulfillment_status,checkout_delivery,checkout_payment_method,shipping_grosz,fee_grosz,discount_grosz&order=created_at.desc&limit=100');
  if(g!==generation||!token)return;
  render(rows);
 }
@@ -29,14 +29,127 @@ function render(rows){
  $('summary').textContent='Widoczne: '+filtered.length+' / '+rows.length+' najnowszych zamówień (maks. 100). Dane testowe.';
  if($('kpiCount')){$('kpiCount').textContent=filtered.length;$('kpiValue').textContent=money(filtered.filter(o=>o.fulfillment_status!=='cancelled').reduce((n,o)=>n+Number(o.total_grosz),0));$('kpiPaid').textContent=money(filtered.filter(o=>o.payment_status==='paid'&&o.fulfillment_status!=='cancelled').reduce((n,o)=>n+Number(o.total_grosz),0));$('kpiNew').textContent=filtered.filter(o=>o.fulfillment_status==='new').length}
 }
-let detailGeneration=0;
-async function details(o){
- const g=generation,d=++detailGeneration,dialog=$('details');if(!dialog)return;
- $('detailTitle').textContent='Zamówienie '+o.id;
- $('detailItems').textContent='Pobieranie pozycji…';dialog.showModal();
- try{const items=await request('/rest/v1/order_items?select=name,sku,quantity,unit_grosz&order_id=eq.'+encodeURIComponent(o.id));if(g!==generation||d!==detailGeneration||!token||!dialog.open)return;
- $('detailItems').replaceChildren();for(const i of items){const p=document.createElement('p');p.textContent=i.name+' · '+i.quantity+' × '+money(i.unit_grosz);$('detailItems').append(p)}if(!items.length)$('detailItems').textContent='Brak pozycji.';
- }catch{if(g===generation&&d===detailGeneration)$('detailItems').textContent='Nie udało się pobrać pozycji.'}
+const deliveryLabels = { locker: 'Paczkomat InPost', courier: 'Kurier' };
+const paymentLabels = { blik: 'BLIK', transfer: 'Szybki przelew', card: 'Karta', cod: 'Za pobraniem' };
+let detailGeneration = 0;
+
+function nextStatuses(order) {
+ const testPending = order.store_id === 'cleanpro' && Boolean(order.checkout_payment_method) &&
+  order.payment_status === 'pending';
+ const canProcess = order.payment_status === 'paid' || testPending;
+ switch (order.fulfillment_status) {
+  case 'new':
+   return [...(canProcess ? ['processing'] : []),
+    ...(['pending', 'failed', 'refunded'].includes(order.payment_status) ? ['cancelled'] : [])];
+  case 'processing':
+   return [...(canProcess ? ['shipped'] : []),
+    ...(testPending || order.payment_status === 'refunded' ? ['cancelled'] : [])];
+  case 'shipped':
+   return ['delivered'];
+  default:
+   return [];
+ }
+}
+
+async function details(order, feedback = '') {
+ const g = generation, detailId = ++detailGeneration, dialog = $('details');
+ const visible = () => g === generation && detailId === detailGeneration && token && dialog.open;
+ const statusForm = $('fulfillmentForm'), select = $('nextStatus'), save = $('saveStatus');
+ const summary = [labels[order.fulfillment_status], labels[order.payment_status]];
+ if (order.checkout_payment_method) {
+  summary.push(deliveryLabels[order.checkout_delivery], paymentLabels[order.checkout_payment_method],
+   'Dostawa ' + money(order.shipping_grosz), 'Opłata ' + money(order.fee_grosz),
+   'Rabat ' + money(order.discount_grosz));
+ }
+ $('detailTitle').textContent = 'Zamówienie ' + order.id;
+ $('detailSummary').textContent = summary.join(' · ');
+ $('detailItems').textContent = 'Pobieranie pozycji…';
+ $('detailHistory').replaceChildren();
+ $('detailMessage').textContent = feedback || 'Pobieranie historii…';
+ statusForm.hidden = true;
+ if (!dialog.open) dialog.showModal();
+
+ try {
+  const [items, history] = await Promise.all([
+   request('/rest/v1/order_items?select=name,sku,quantity,unit_grosz&order_id=eq.' + encodeURIComponent(order.id)),
+   request('/rest/v1/rpc/drop_get_fulfillment_history', 'POST', { p_order_id: order.id })
+  ]);
+  if (!visible()) return;
+  $('detailItems').replaceChildren();
+  for (const item of items) {
+   const line = document.createElement('p');
+   line.textContent = item.name + ' · ' + item.quantity + ' × ' + money(item.unit_grosz);
+   $('detailItems').append(line);
+  }
+  if (!items.length) $('detailItems').textContent = 'Brak pozycji.';
+  for (const entry of history) {
+   const line = document.createElement('li');
+   line.textContent = new Date(entry.changed_at).toLocaleString('pl-PL') + ' · ' +
+    (labels[entry.old_status] || entry.old_status) + ' → ' +
+    (labels[entry.new_status] || entry.new_status) + ' · ' + entry.actor_id;
+   $('detailHistory').append(line);
+  }
+  if (!history.length) {
+   const line = document.createElement('li');
+   line.textContent = 'Brak zmian statusu.';
+   $('detailHistory').append(line);
+  }
+  $('detailMessage').textContent = feedback;
+ } catch (error) {
+  if (!visible()) return;
+  if (error.status === 401 || error.status === 403) {
+   clear();
+   msg('Sesja wygasła lub brak dostępu. Zaloguj się ponownie.');
+   return;
+  }
+  $('detailItems').replaceChildren();
+  $('detailMessage').textContent = 'Nie udało się pobrać szczegółów lub historii.';
+  return;
+ }
+
+ const statuses = nextStatuses(order);
+ select.replaceChildren(new Option('Wybierz status', ''));
+ for (const status of statuses) select.add(new Option(labels[status], status));
+ select.disabled = false;
+ save.disabled = false;
+ statusForm.hidden = !statuses.length;
+ statusForm.onsubmit = async event => {
+  event.preventDefault();
+  if (save.disabled || !statuses.includes(select.value) || !visible()) return;
+  const next = select.value;
+  select.disabled = true;
+  save.disabled = true;
+  $('detailMessage').textContent = 'Zapisywanie statusu…';
+  let changed = false;
+  try {
+   await request('/rest/v1/rpc/drop_update_fulfillment', 'POST', { p_order_id: order.id, p_status: next });
+   changed = true;
+   if (g !== generation) return;
+   await load();
+   if (visible()) await details(current.find(row => row.id === order.id) ||
+    { ...order, fulfillment_status: next }, 'Zapisano status.');
+  } catch (error) {
+   if (g !== generation) return;
+   if (error.status === 401 || error.status === 403) {
+    clear();
+    msg('Sesja wygasła lub brak dostępu. Zaloguj się ponownie.');
+    return;
+   }
+   if (changed) {
+    render(current.map(row => row.id === order.id ? { ...row, fulfillment_status: next } : row));
+    if (visible()) await details({ ...order, fulfillment_status: next },
+     'Zapisano status. Odśwież listę, aby pobrać aktualne dane.');
+   } else if (visible()) {
+    if (error.status === 409) {
+     statusForm.hidden = true;
+     $('detailMessage').textContent = 'Status zamówienia uległ zmianie. Zamknij szczegóły i odśwież listę.';
+    } else {
+     $('detailMessage').textContent = 'Brak potwierdzenia zapisu. Odśwież listę i sprawdź historię.';
+     statusForm.hidden = true;
+    }
+   }
+  }
+ };
 }
 for(const id of ['storeFilter','statusFilter','searchOrder'])$(id)?.addEventListener('input',()=>render(current));
 $('closeDetails')?.addEventListener('click',()=>$('details').close());

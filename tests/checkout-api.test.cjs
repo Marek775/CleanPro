@@ -7,7 +7,7 @@ test('staging endpoint fails closed and validates input',async()=>{
  delete process.env.DROP_STAGING_CHECKOUT;
  assert.equal((await call('GET')).code,405);
  assert.equal((await call('POST')).code,503);
- Object.assign(process.env,{DROP_STAGING_CHECKOUT:'enabled',DROP_STAGING_TOKEN:token,DROP_STAGING_SERVICE_KEY:'fake',DROP_STAGING_SUPABASE_URL:'https://example.supabase.co'});
+ Object.assign(process.env,{VERCEL_ENV:'preview',DROP_STAGING_CHECKOUT:'enabled',DROP_STAGING_TOKEN:token,DROP_STAGING_SERVICE_KEY:'fake',DROP_STAGING_SUPABASE_URL:'https://example.supabase.co'});
  assert.equal((await call('POST','wrong')).code,401);
  const body={requestId:'12345678-1234-1234-1234-123456789abc',items:[{sku:'plus',quantity:2}]};
  assert.equal((await call('POST','Bearer '+token,{...body,email:'test@example.com'})).code,400);

@@ -21,16 +21,19 @@
   "accessories": [
     {
       "name": "Szczotka zapasowa",
+      "sku": "spare-brush",
       "price": 29.9,
       "img": "assets/replaceable_brush.webp"
     },
     {
       "name": "Szczotka do silnych zabrudzeń",
+      "sku": "heavy-brush",
       "price": 39.9,
       "img": "assets/brush_heads.webp"
     },
     {
       "name": "Zestaw dodatkowych końcówek",
+      "sku": "extra-heads",
       "price": 69.9,
       "img": "assets/brush_heads.webp"
     }

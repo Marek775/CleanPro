@@ -3,7 +3,7 @@ module.exports = async function handler(req,res) {
  res.setHeader('Cache-Control','no-store');
  if(req.method!=='POST'){res.setHeader('Allow','POST');return res.status(405).json({error:'Method not allowed'});}
  const {DROP_STAGING_CHECKOUT,DROP_STAGING_TOKEN,DROP_STAGING_SUPABASE_URL,DROP_STAGING_SERVICE_KEY}=process.env;
- if(DROP_STAGING_CHECKOUT!=='enabled'||!DROP_STAGING_TOKEN||DROP_STAGING_TOKEN.length<32||!DROP_STAGING_SERVICE_KEY)return res.status(503).json({error:'Staging checkout disabled'});
+ if(process.env.VERCEL_ENV!=='preview'||DROP_STAGING_CHECKOUT!=='enabled'||!DROP_STAGING_TOKEN||DROP_STAGING_TOKEN.length<32||!DROP_STAGING_SERVICE_KEY)return res.status(503).json({error:'Staging checkout disabled'});
  const digest=s=>crypto.createHash('sha256').update(s).digest();
  if(!crypto.timingSafeEqual(digest(req.headers.authorization||''),digest('Bearer '+DROP_STAGING_TOKEN)))return res.status(401).json({error:'Unauthorized'});
  let base;
