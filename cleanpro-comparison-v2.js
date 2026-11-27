@@ -1,0 +1,1 @@
+document.querySelectorAll('.before-after-slider').forEach(function(slider){var range=slider.querySelector('.ba-range');function update(){slider.style.setProperty('--split',range.value+'%');range.setAttribute('aria-valuetext',range.value+' procent czystej powierzchni')}range.addEventListener('input',update);update();});
