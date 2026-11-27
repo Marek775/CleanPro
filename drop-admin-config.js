@@ -1,0 +1,1 @@
+window.DropAdminConfig=Object.freeze({url:"",publishableKey:""});
