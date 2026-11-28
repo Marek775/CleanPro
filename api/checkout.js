@@ -1,3 +1,4 @@
+const { sandboxEnabled, startSandboxPayment } = require('../server/stripe-sandbox');
 const UUID_V4 = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i;
 const skus = new Set(['basic', 'plus', 'premium', 'spare-brush', 'heavy-brush', 'extra-heads']);
 
@@ -104,7 +105,18 @@ module.exports = async function checkout(req, res) {
         receipt.totalGrosz !== body.expectedTotalGrosz) {
       return res.status(502).json({ error: 'invalid_receipt' });
     }
-    return res.status(200).json({ orderId: receipt.orderId, totalGrosz: receipt.totalGrosz });
+    const result = { orderId: receipt.orderId, totalGrosz: receipt.totalGrosz };
+    if (body.payment === 'card' && process.env.DROP_STRIPE_SANDBOX === 'enabled') {
+      try {
+        if (!sandboxEnabled()) throw Error('Sandbox setup incomplete');
+        const origin = VERCEL_BRANCH_URL ? 'https://' + VERCEL_BRANCH_URL : req.headers.origin;
+        result.paymentUrl = await startSandboxPayment(receipt.orderId, receipt.totalGrosz, origin);
+        if (!result.paymentUrl) return res.status(409).json({ error: 'sandbox_payment_closed' });
+      } catch {
+        return res.status(502).json({ error: 'sandbox_payment_unavailable' });
+      }
+    }
+    return res.status(200).json(result);
   } catch {
     return res.status(502).json({ error: 'database_unavailable' });
   }

@@ -14,7 +14,7 @@ async function request(path,method='GET',body,access=token){
 function clear(){clearRecipient();generation++;token=null;current=[];if($('details')?.open)$('details').close();$('detailItems').replaceChildren();$('detailHistory').replaceChildren();$('detailSummary').textContent='';$('rows').replaceChildren();$('summary').textContent='';$('panel').hidden=true;$('login').hidden=false;$('password').value=''}
 async function load(){
  const g=generation;
- const rows=await request('/rest/v1/orders?select=id,store_id,created_at,total_grosz,currency,payment_status,fulfillment_status,checkout_delivery,checkout_payment_method,shipping_grosz,fee_grosz,discount_grosz,shipping_source,shipping_revision,shipping_carrier,tracking_number,supplier_reference&order=created_at.desc&limit=100');
+ const rows=await request('/rest/v1/orders?select=id,store_id,created_at,total_grosz,currency,payment_status,fulfillment_status,checkout_delivery,checkout_payment_method,shipping_grosz,fee_grosz,discount_grosz,shipping_source,shipping_revision,shipping_carrier,tracking_number,supplier_reference,stripe_test_started_at&order=created_at.desc&limit=100');
  if(g!==generation||!token)return;
  render(rows);
 }
@@ -114,11 +114,12 @@ function showShipping(order, history, visible, reload, setBusy) {
 function nextStatuses(order) {
  const testPending = order.store_id === 'cleanpro' && Boolean(order.checkout_payment_method) &&
   order.payment_status === 'pending';
- const canProcess = order.payment_status === 'paid' || testPending;
+ const canProcess = order.payment_status === 'paid' || (testPending && !order.stripe_test_started_at);
  switch (order.fulfillment_status) {
   case 'new':
    return [...(canProcess ? ['processing'] : []),
-    ...(['pending', 'failed', 'refunded'].includes(order.payment_status) ? ['cancelled'] : [])];
+    ...((['failed', 'refunded'].includes(order.payment_status) ||
+     (order.payment_status === 'pending' && !order.stripe_test_started_at)) ? ['cancelled'] : [])];
   case 'processing':
    return [...(canProcess && readyToShip(order) ? ['shipped'] : []),
     ...(testPending || order.payment_status === 'refunded' ? ['cancelled'] : [])];

@@ -3,11 +3,13 @@ on:
   push:
     paths:
       - 'api/**'
+      - 'server/**'
       - 'tests/**'
       - '.github/workflows/checkout-tests.yml'
   pull_request:
     paths:
       - 'api/**'
+      - 'server/**'
       - 'tests/**'
       - '.github/workflows/checkout-tests.yml'
 permissions:

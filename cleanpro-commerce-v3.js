@@ -5,6 +5,8 @@ const back = document.querySelector('#co-back');
 const message = document.querySelector('#co-order-message');
 const submit = form.querySelector('[type="submit"]');
 const errors = {
+  sandbox_payment_unavailable: 'Zamówienie zapisano, ale płatność testowa jest niedostępna. Spróbuj ponownie z tym samym koszykiem.',
+  sandbox_payment_closed: 'Ta próba płatności jest zakończona albo wygasła. Sprawdź zamówienie w Drop Admin.',
   invalid_recipient: 'Sprawdź e-mail, telefon i dane dostawy. Kod pocztowy podaj w formacie 00-000.',
   price_changed: 'Cena w sklepie uległa zmianie. Odśwież stronę i sprawdź koszyk.',
   items_unavailable: 'Co najmniej jeden produkt jest niedostępny. Sprawdź koszyk.',
@@ -83,6 +85,15 @@ form.addEventListener('submit', async event => {
     if (!receipt || typeof receipt.orderId !== 'string' || !receipt.orderId ||
         receipt.totalGrosz !== payload.expectedTotalGrosz) throw new Error();
 
+    const payLink = document.querySelector('#co-stripe-payment');
+    payLink.hidden = true;
+    payLink.removeAttribute('href');
+    if (receipt.paymentUrl) {
+      const paymentUrl = new URL(receipt.paymentUrl);
+      if (paymentUrl.origin !== 'https://checkout.stripe.com') throw new Error();
+      payLink.href = paymentUrl.href;
+      payLink.hidden = false;
+    }
     confirmRender(receipt);
     const analytics = { ...snapshot(), value: receipt.totalGrosz / 100, shipping_tier: payload.delivery,
       payment_type: payload.payment };
