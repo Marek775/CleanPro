@@ -119,6 +119,7 @@ begin
  exception when sqlstate 'PT409' then null;
  end;
  perform public.drop_update_fulfillment(target,'processing');
+ perform public.drop_save_shipping(target,0,'self','Testowy przewoźnik','TEST-INTEGRATION',null);
  perform public.drop_update_fulfillment(target,'shipped');
  perform public.drop_update_fulfillment(target,'delivered');
  if (select count(*) from public.drop_get_fulfillment_history(target)

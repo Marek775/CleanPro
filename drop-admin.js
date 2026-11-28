@@ -14,7 +14,7 @@ async function request(path,method='GET',body,access=token){
 function clear(){generation++;token=null;current=[];if($('details')?.open)$('details').close();$('detailItems').replaceChildren();$('detailHistory').replaceChildren();$('detailSummary').textContent='';$('rows').replaceChildren();$('summary').textContent='';$('panel').hidden=true;$('login').hidden=false;$('password').value=''}
 async function load(){
  const g=generation;
- const rows=await request('/rest/v1/orders?select=id,store_id,created_at,total_grosz,currency,payment_status,fulfillment_status,checkout_delivery,checkout_payment_method,shipping_grosz,fee_grosz,discount_grosz&order=created_at.desc&limit=100');
+ const rows=await request('/rest/v1/orders?select=id,store_id,created_at,total_grosz,currency,payment_status,fulfillment_status,checkout_delivery,checkout_payment_method,shipping_grosz,fee_grosz,discount_grosz,shipping_source,shipping_revision,shipping_carrier,tracking_number,supplier_reference&order=created_at.desc&limit=100');
  if(g!==generation||!token)return;
  render(rows);
 }
@@ -31,7 +31,85 @@ function render(rows){
 }
 const deliveryLabels = { locker: 'Paczkomat InPost', courier: 'Kurier' };
 const paymentLabels = { blik: 'BLIK', transfer: 'Szybki przelew', card: 'Karta', cod: 'Za pobraniem' };
+const shippingLabels = { supplier: 'Dostawca w moim imieniu', self: 'Wysyłam samodzielnie' };
 let detailGeneration = 0;
+
+function usesShipping(order) {
+ return order.store_id === 'cleanpro' && Boolean(order.checkout_payment_method);
+}
+
+function readyToShip(order) {
+ return !usesShipping(order) || (order.shipping_source && order.shipping_carrier &&
+  order.tracking_number && (order.shipping_source !== 'supplier' || order.supplier_reference));
+}
+
+function shippingDescription(order) {
+ return [shippingLabels[order.shipping_source], order.shipping_carrier, order.tracking_number,
+  order.supplier_reference && 'Zlecenie dostawcy ' + order.supplier_reference].filter(Boolean).join(' · ');
+}
+
+function showShipping(order, history, visible, reload, setBusy) {
+ const form = $('shippingForm'), select = $('shippingSource'), reference = $('supplierReference');
+ const carrier = $('shippingCarrier'), tracking = $('trackingNumber');
+ $('shippingDetails').hidden = !usesShipping(order);
+ if (!usesShipping(order)) return;
+
+ $('shippingSummary').textContent = shippingDescription(order) || 'Nie wybrano sposobu realizacji.';
+ if (order.fulfillment_status === 'processing' && !readyToShip(order)) {
+  $('shippingSummary').textContent += ' Przed oznaczeniem jako wysłane zapisz przewoźnika i numer śledzenia. Przy wysyłce przez dostawcę podaj także jego numer zlecenia.';
+ }
+ $('shippingHistory').replaceChildren();
+ for (const entry of history) {
+  const li = document.createElement('li');
+  li.textContent = new Date(entry.changed_at).toLocaleString('pl-PL') + ' · ' +
+   (entry.previous_source && entry.previous_source !== entry.shipping_source
+    ? shippingLabels[entry.previous_source] + ' → ' : '') + shippingDescription(entry) + ' · ' + entry.actor_id;
+  $('shippingHistory').append(li);
+ }
+ if (!history.length) {
+  const li = document.createElement('li');
+  li.textContent = 'Brak zmian danych wysyłki.';
+  $('shippingHistory').append(li);
+ }
+ form.hidden = !['new', 'processing'].includes(order.fulfillment_status);
+ select.value = order.shipping_source || '';
+ carrier.value = order.shipping_carrier || '';
+ tracking.value = order.tracking_number || '';
+ reference.value = order.supplier_reference || '';
+ const updateReference = () => {
+  $('supplierReferenceLabel').hidden = reference.disabled = select.value !== 'supplier';
+ };
+ select.onchange = updateReference;
+ updateReference();
+ form.onsubmit = async event => {
+  event.preventDefault();
+  if (!visible() || $('saveShipping').disabled) return;
+  setBusy(true);
+  try {
+   await request('/rest/v1/rpc/drop_save_shipping', 'POST', {
+    p_order_id: order.id, p_revision: order.shipping_revision, p_source: select.value,
+    p_carrier: carrier.value.trim(), p_tracking: tracking.value.trim(),
+    p_supplier_reference: select.value === 'supplier' ? reference.value.trim() : null
+   });
+   if (visible()) await reload('Zapisano dane wysyłki.');
+  } catch (error) {
+   if (!visible()) return;
+   if (error.status === 401 || error.status === 403) {
+    clear();
+    msg('Sesja wygasła lub brak dostępu. Zaloguj się ponownie.');
+   } else if (error.status === 409) {
+    $('detailMessage').textContent = 'Zamówienie zmieniło się. Zamknij szczegóły i odśwież listę.';
+    form.hidden = true;
+   } else {
+    $('detailMessage').textContent = error.status === 422
+     ? 'Sprawdź format i długość numerów wysyłki.' : 'Brak potwierdzenia zapisu wysyłki. Odśwież listę.';
+   }
+  } finally {
+   if (visible()) setBusy(false);
+  }
+ };
+}
+
 
 function nextStatuses(order) {
  const testPending = order.store_id === 'cleanpro' && Boolean(order.checkout_payment_method) &&
@@ -42,7 +120,7 @@ function nextStatuses(order) {
    return [...(canProcess ? ['processing'] : []),
     ...(['pending', 'failed', 'refunded'].includes(order.payment_status) ? ['cancelled'] : [])];
   case 'processing':
-   return [...(canProcess ? ['shipped'] : []),
+   return [...(canProcess && readyToShip(order) ? ['shipped'] : []),
     ...(testPending || order.payment_status === 'refunded' ? ['cancelled'] : [])];
   case 'shipped':
    return ['delivered'];
@@ -67,12 +145,23 @@ async function details(order, feedback = '') {
  $('detailHistory').replaceChildren();
  $('detailMessage').textContent = feedback || 'Pobieranie historii…';
  statusForm.hidden = true;
+ $('shippingDetails').hidden = true;
+ const setBusy = busy => { save.disabled = $('saveShipping').disabled = busy; };
+ const reload = async message => {
+  await load();
+  if (visible()) {
+   const updated = current.find(row => row.id === order.id);
+   if (updated) await details(updated, message);
+   else dialog.close();
+  }
+ };
  if (!dialog.open) dialog.showModal();
 
  try {
-  const [items, history] = await Promise.all([
+  const [items, history, shippingHistory] = await Promise.all([
    request('/rest/v1/order_items?select=name,sku,quantity,unit_grosz&order_id=eq.' + encodeURIComponent(order.id)),
-   request('/rest/v1/rpc/drop_get_fulfillment_history', 'POST', { p_order_id: order.id })
+   request('/rest/v1/rpc/drop_get_fulfillment_history', 'POST', { p_order_id: order.id }),
+   usesShipping(order) ? request('/rest/v1/rpc/drop_get_shipping_history', 'POST', { p_order_id: order.id }) : []
   ]);
   if (!visible()) return;
   $('detailItems').replaceChildren();
@@ -94,6 +183,7 @@ async function details(order, feedback = '') {
    line.textContent = 'Brak zmian statusu.';
    $('detailHistory').append(line);
   }
+  showShipping(order, shippingHistory, visible, reload, setBusy);
   $('detailMessage').textContent = feedback;
  } catch (error) {
   if (!visible()) return;
@@ -111,14 +201,14 @@ async function details(order, feedback = '') {
  select.replaceChildren(new Option('Wybierz status', ''));
  for (const status of statuses) select.add(new Option(labels[status], status));
  select.disabled = false;
- save.disabled = false;
+ setBusy(false);
  statusForm.hidden = !statuses.length;
  statusForm.onsubmit = async event => {
   event.preventDefault();
   if (save.disabled || !statuses.includes(select.value) || !visible()) return;
   const next = select.value;
   select.disabled = true;
-  save.disabled = true;
+  setBusy(true);
   $('detailMessage').textContent = 'Zapisywanie statusu…';
   let changed = false;
   try {
@@ -142,10 +232,12 @@ async function details(order, feedback = '') {
    } else if (visible()) {
     if (error.status === 409) {
      statusForm.hidden = true;
+     $('shippingForm').hidden = true;
      $('detailMessage').textContent = 'Status zamówienia uległ zmianie. Zamknij szczegóły i odśwież listę.';
     } else {
      $('detailMessage').textContent = 'Brak potwierdzenia zapisu. Odśwież listę i sprawdź historię.';
      statusForm.hidden = true;
+     $('shippingForm').hidden = true;
     }
    }
   }

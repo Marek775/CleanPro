@@ -23,3 +23,10 @@ Sklep zapisuje w Supabase pozycje, wybraną dostawę i metodę płatności, opł
 
 3. Uruchom `node --test tests/*.test.cjs`. W Preview złóż zamówienie przy użyciu fikcyjnych danych, sprawdź identyczny UUID i kwotę w Drop Admin, zmień kolejno statusy i zweryfikuj historię. Płatność ma pozostać w statusie `pending`.
 4. Aby wyłączyć zapis z podglądu, usuń flagę `DROP_STAGING_WEB_CHECKOUT` i przebuduj Preview. Publiczny adres produkcyjny i dotychczasowe dane pozostają niezależne od tej gałęzi.
+
+
+## Wysyłka testowa w Drop Admin
+
+W szczegółach zamówienia CleanPro wybierz osobę realizującą wysyłkę. Przy wysyłce własnej zapisz przewoźnika i numer śledzenia. Przy wysyłce przez dostawcę zapisz również numer zlecenia nadany przez dostawcę. Możesz zapisać sam wybór sposobu realizacji i uzupełnić pozostałe pola później. Status „Wysłane” wymaga kompletu danych.
+
+W panelu widnieją historia zmian danych wysyłki i historia zmian statusu. Scenariusze testowe nie generują etykiet ani zleceń w systemach dostawców. Używaj fikcyjnych numerów śledzenia i zleceń. Test bazy znajduje się w `supabase/tests/shipping_routes.sql`.
