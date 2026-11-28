@@ -306,7 +306,11 @@ $('details').addEventListener('close', () => { if (!$('details').open) clearReci
 $('closeDetails')?.addEventListener('click',()=>$('details').close());
 $('login').hidden=false;msg('Zaloguj się na konto administratora.');
 $('form').addEventListener('submit',async e=>{
- e.preventDefault();$('submit').disabled=true;const g=++generation;
+ e.preventDefault();
+ const submit = $('submit');
+ if (submit.disabled) return;
+ submit.disabled = true;
+ const g = ++generation;
  try{
  const auth=await request('/auth/v1/token?grant_type=password','POST',{email:$('email').value,password:$('password').value},null);
  $('password').value='';
@@ -318,7 +322,7 @@ $('form').addEventListener('submit',async e=>{
  if(allowed!==true){clear();msg('Konto nie ma uprawnień administratora.');return}
  await load();if(g!==generation)return;
  $('login').hidden=true;$('panel').hidden=false;msg('Zalogowano. Sesja nie jest zapisywana w przeglądarce.');
- }catch{if(g===generation){clear();msg('Logowanie lub odczyt danych nie powiódł się.')}}finally{$('password').value='';$('submit').disabled=false}
+ }catch{if(g===generation){clear();msg('Logowanie lub odczyt danych nie powiódł się.')}}finally{$('password').value='';submit.disabled=false}
 });
 $('refresh').onclick=async()=>{const g=generation;try{await load()}catch(e){if(g!==generation)return;if(e.status===401||e.status===403){clear();msg('Sesja wygasła lub brak dostępu. Zaloguj się ponownie.')}else msg('Nie udało się odświeżyć zamówień.')}};
 $('logout').onclick=async()=>{const old=token;clear();msg('Wylogowano lokalnie.');try{if(old)await request('/auth/v1/logout?scope=local','POST',undefined,old)}catch{}};
