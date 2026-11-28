@@ -11,7 +11,7 @@ async function request(path,method='GET',body,access=token){
  if(!r.ok){const e=new Error('Request failed');e.status=r.status;throw e}
  return r.status===204?null:r.json()
 }
-function clear(){generation++;token=null;current=[];if($('details')?.open)$('details').close();$('detailItems').replaceChildren();$('detailHistory').replaceChildren();$('detailSummary').textContent='';$('rows').replaceChildren();$('summary').textContent='';$('panel').hidden=true;$('login').hidden=false;$('password').value=''}
+function clear(){clearRecipient();generation++;token=null;current=[];if($('details')?.open)$('details').close();$('detailItems').replaceChildren();$('detailHistory').replaceChildren();$('detailSummary').textContent='';$('rows').replaceChildren();$('summary').textContent='';$('panel').hidden=true;$('login').hidden=false;$('password').value=''}
 async function load(){
  const g=generation;
  const rows=await request('/rest/v1/orders?select=id,store_id,created_at,total_grosz,currency,payment_status,fulfillment_status,checkout_delivery,checkout_payment_method,shipping_grosz,fee_grosz,discount_grosz,shipping_source,shipping_revision,shipping_carrier,tracking_number,supplier_reference&order=created_at.desc&limit=100');
@@ -129,6 +129,61 @@ function nextStatuses(order) {
  }
 }
 
+function clearRecipient() {
+ $('recipientDetails').hidden = true;
+ $('recipientFields').replaceChildren();
+ $('supplierDraft').hidden = true;
+ $('supplierOrderText').value = '';
+ $('supplierCopyMessage').textContent = '';
+}
+
+function showRecipient(order, recipient, items, visible) {
+ if (!usesShipping(order)) return;
+ $('recipientDetails').hidden = false;
+ const fieldList = $('recipientFields');
+ if (!recipient) {
+  const missing = document.createElement('dd');
+  missing.textContent = 'Brak danych dostawy. Zamówienie zapisano bez danych odbiorcy.';
+  fieldList.append(missing);
+  return;
+ }
+ const fields = [
+  ['Odbiorca', recipient.name], ['E-mail', recipient.email], ['Telefon', recipient.phone]
+ ];
+ if (order.checkout_delivery === 'locker') fields.push(['Paczkomat', recipient.lockerCode]);
+ else fields.push(['Ulica i numer', recipient.street], ['Kod pocztowy', recipient.postalCode], ['Miasto', recipient.city]);
+ for (const [label, value] of fields) {
+  const term = document.createElement('dt'), description = document.createElement('dd');
+  term.textContent = label;
+  description.textContent = value;
+  fieldList.append(term, description);
+ }
+ if (order.shipping_source !== 'supplier' || order.fulfillment_status === 'cancelled') return;
+
+ const draft = $('supplierOrderText'), copyMessage = $('supplierCopyMessage');
+ $('supplierDraft').hidden = false;
+ draft.value = [
+  'ZLECENIE TESTOWE – NIE NADAWAĆ',
+  'Zamówienie CleanPro ' + order.id,
+  'Proszę o przygotowanie wysyłki w imieniu CleanPro.',
+  'Dostawa: ' + deliveryLabels[order.checkout_delivery],
+  ...(order.checkout_payment_method === 'cod' ? ['Sposób płatności: za pobraniem (symulacja)'] : []),
+  ...fields.map(([label, value]) => label + ': ' + value),
+  '', 'Pozycje:',
+  ...items.map(item => item.sku + ' · ' + item.name + ' · ' + item.quantity + ' szt.')
+ ].join('\n');
+ $('copySupplierOrder').onclick = async () => {
+  try {
+   await navigator.clipboard.writeText(draft.value);
+   if (visible()) copyMessage.textContent = 'Skopiowano zlecenie.';
+  } catch {
+   if (!visible()) return;
+   draft.select();
+   copyMessage.textContent = 'Automatyczne kopiowanie jest niedostępne. Skopiuj zaznaczony tekst ręcznie.';
+  }
+ };
+}
+
 async function details(order, feedback = '') {
  const g = generation, detailId = ++detailGeneration, dialog = $('details');
  const visible = () => g === generation && detailId === detailGeneration && token && dialog.open;
@@ -146,6 +201,7 @@ async function details(order, feedback = '') {
  $('detailMessage').textContent = feedback || 'Pobieranie historii…';
  statusForm.hidden = true;
  $('shippingDetails').hidden = true;
+ clearRecipient();
  const setBusy = busy => { save.disabled = $('saveShipping').disabled = busy; };
  const reload = async message => {
   await load();
@@ -158,10 +214,11 @@ async function details(order, feedback = '') {
  if (!dialog.open) dialog.showModal();
 
  try {
-  const [items, history, shippingHistory] = await Promise.all([
+  const [items, history, shippingHistory, recipient] = await Promise.all([
    request('/rest/v1/order_items?select=name,sku,quantity,unit_grosz&order_id=eq.' + encodeURIComponent(order.id)),
    request('/rest/v1/rpc/drop_get_fulfillment_history', 'POST', { p_order_id: order.id }),
-   usesShipping(order) ? request('/rest/v1/rpc/drop_get_shipping_history', 'POST', { p_order_id: order.id }) : []
+   usesShipping(order) ? request('/rest/v1/rpc/drop_get_shipping_history', 'POST', { p_order_id: order.id }) : [],
+   usesShipping(order) ? request('/rest/v1/rpc/drop_get_delivery_details', 'POST', { p_order_id: order.id }) : null
   ]);
   if (!visible()) return;
   $('detailItems').replaceChildren();
@@ -184,6 +241,7 @@ async function details(order, feedback = '') {
    $('detailHistory').append(line);
   }
   showShipping(order, shippingHistory, visible, reload, setBusy);
+  showRecipient(order, recipient, items, visible);
   $('detailMessage').textContent = feedback;
  } catch (error) {
   if (!visible()) return;
@@ -244,6 +302,7 @@ async function details(order, feedback = '') {
  };
 }
 for(const id of ['storeFilter','statusFilter','searchOrder'])$(id)?.addEventListener('input',()=>render(current));
+$('details').addEventListener('close', () => { if (!$('details').open) clearRecipient(); });
 $('closeDetails')?.addEventListener('click',()=>$('details').close());
 $('login').hidden=false;msg('Zaloguj się na konto administratora.');
 $('form').addEventListener('submit',async e=>{

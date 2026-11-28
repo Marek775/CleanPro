@@ -1,6 +1,6 @@
 # CleanPro i Drop Admin — wdrożenie testowe
 
-Sklep zapisuje w Supabase pozycje, wybraną dostawę i metodę płatności, opłaty, rabat i wartość zamówienia. Dane kontaktowe i adresowe z formularza testowego pozostają w przeglądarce. Wszystkie metody płatności są symulowane i zachowują status `pending`. Administrator może przeprowadzić zapisane zamówienie testowe przez kolejne etapy realizacji. Historia zawiera poprzedni i nowy status, czas oraz UUID administratora.
+Sklep zapisuje w Supabase pozycje, wybraną dostawę i metodę płatności, opłaty, rabat i wartość zamówienia. Checkout zapisuje fikcyjne dane odbiorcy w oddzielnej tabeli. Dane dostawy odczyta wyłącznie administrator. Dane odbiorcy nie są zapisywane w localStorage ani sessionStorage. Wszystkie metody płatności są symulowane i zachowują status `pending`. Administrator może przeprowadzić zapisane zamówienie testowe przez kolejne etapy realizacji. Historia zawiera poprzedni i nowy status, czas oraz UUID administratora.
 
 ## Supabase
 
@@ -30,3 +30,5 @@ Sklep zapisuje w Supabase pozycje, wybraną dostawę i metodę płatności, opł
 W szczegółach zamówienia CleanPro wybierz osobę realizującą wysyłkę. Przy wysyłce własnej zapisz przewoźnika i numer śledzenia. Przy wysyłce przez dostawcę zapisz również numer zlecenia nadany przez dostawcę. Możesz zapisać sam wybór sposobu realizacji i uzupełnić pozostałe pola później. Status „Wysłane” wymaga kompletu danych.
 
 W panelu widnieją historia zmian danych wysyłki i historia zmian statusu. Scenariusze testowe nie generują etykiet ani zleceń w systemach dostawców. Używaj fikcyjnych numerów śledzenia i zleceń. Test bazy znajduje się w `supabase/tests/shipping_routes.sql`.
+
+Przy zamówieniach testowych zapisanych z danymi odbiorcy Drop Admin pokazuje informacje potrzebne do dostawy. Dla wysyłki przez dostawcę możesz skopiować tekst zlecenia oznaczony jako testowy. Panel nie przekazuje danych dostawcy automatycznie. Test bazy znajduje się w `supabase/tests/delivery_details.sql`.

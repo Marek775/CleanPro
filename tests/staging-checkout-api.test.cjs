@@ -11,7 +11,9 @@ const body = {
   delivery: 'courier',
   payment: 'cod',
   coupon: 'CLEAN10',
-  expectedTotalGrosz: 49510
+  expectedTotalGrosz: 49510,
+  recipient: { name: 'Jan Testowy', email: 'sample@example.invalid', phone: '500000000',
+    street: 'Testowa 1', postalCode: '00-001', city: 'Warszawa' }
 };
 const env = {
   VERCEL_ENV: 'preview',
@@ -60,7 +62,7 @@ test('accepts only configured Preview hosts and POST JSON', async () => {
   assert.equal((await call()).status, 503);
 });
 
-test('rejects extra amounts and PII, duplicate items, invalid options and quantities', async () => {
+test('rejects unexpected top-level fields and amounts, duplicate items, invalid options and quantities', async () => {
   const bad = [
     { email: 'test@example.invalid' },
     { payment: 'paid' },
@@ -78,9 +80,30 @@ test('rejects extra amounts and PII, duplicate items, invalid options and quanti
   }
 });
 
+test('checks delivery data according to the selected delivery method', async () => {
+  for (const override of [
+    { recipient: null },
+    { delivery: 'locker' },
+    { recipient: { ...body.recipient, postalCode: '00001' } },
+    { recipient: { ...body.recipient, phone: 'wrong' } },
+    { recipient: { ...body.recipient, email: 'wrong' } },
+    { recipient: { ...body.recipient, street: 'Testowa\n1' } }
+  ]) {
+    const result = await call({ body: { ...body, ...override } });
+    assert.deepEqual(result.data, { error: 'invalid_recipient' });
+  }
+  const { name, email, phone } = body.recipient;
+  global.fetch = async (_url, opts) => {
+    assert.deepEqual(JSON.parse(opts.body).p_recipient, { name, email, phone, lockerCode: 'TEST01' });
+    return Response.json({ orderId, totalGrosz: 49510 });
+  };
+  assert.equal((await call({ body: { ...body, delivery: 'locker',
+    recipient: { name, email, phone, lockerCode: ' test01 ' } } })).status, 200);
+});
+
 test('uses the server-only RPC and returns the database receipt', async () => {
   global.fetch = async (url, opts) => {
-    assert.equal(url.href, 'https://testproject.supabase.co/rest/v1/rpc/drop_create_cleanpro_test_order');
+    assert.equal(url.href, 'https://testproject.supabase.co/rest/v1/rpc/drop_create_cleanpro_test_order_with_delivery');
     assert.equal(opts.redirect, 'error');
     assert.equal(opts.headers.apikey, env.DROP_STAGING_SERVICE_KEY);
     assert.equal(opts.headers.Authorization, undefined);
@@ -90,7 +113,8 @@ test('uses the server-only RPC and returns the database receipt', async () => {
       p_delivery: 'courier',
       p_payment: 'cod',
       p_coupon: 'CLEAN10',
-      p_expected_total_grosz: 49510
+      p_expected_total_grosz: 49510,
+      p_recipient: body.recipient
     });
     return Response.json({ orderId, totalGrosz: 49510 });
   };

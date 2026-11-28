@@ -5,6 +5,7 @@ const back = document.querySelector('#co-back');
 const message = document.querySelector('#co-order-message');
 const submit = form.querySelector('[type="submit"]');
 const errors = {
+  invalid_recipient: 'Sprawdź e-mail, telefon i dane dostawy. Kod pocztowy podaj w formacie 00-000.',
   price_changed: 'Cena w sklepie uległa zmianie. Odśwież stronę i sprawdź koszyk.',
   items_unavailable: 'Co najmniej jeden produkt jest niedostępny. Sprawdź koszyk.',
   idempotency_conflict: 'Zapis tej próby jest niespójny. Skontaktuj się z obsługą testów.',
@@ -31,6 +32,20 @@ function checkoutPayload() {
   const fee = payment === 'cod' ? config.codFee : 0;
   const expectedTotalGrosz = Math.round((sub - discount(sub) + ship + fee) * 100);
   return { items, delivery, payment, coupon: promo ? config.coupon.code : null, expectedTotalGrosz };
+}
+
+function checkoutRecipient(delivery) {
+  const value = name => form.elements.namedItem(name).value.trim();
+  return {
+    name: value('recipientName'),
+    email: value('recipientEmail'),
+    phone: value('recipientPhone'),
+    ...(delivery === 'locker' ? { lockerCode: value('recipientLocker') } : {
+      street: value('recipientStreet'),
+      postalCode: value('recipientPostalCode'),
+      city: value('recipientCity')
+    })
+  };
 }
 
 function checkoutRequestId(payload) {
@@ -61,7 +76,7 @@ form.addEventListener('submit', async event => {
       credentials: 'same-origin',
       redirect: 'error',
       signal: AbortSignal.timeout(12000),
-      body: JSON.stringify({ ...payload, requestId: checkoutRequestId(payload) })
+      body: JSON.stringify({ ...payload, requestId: checkoutRequestId(payload), recipient: checkoutRecipient(payload.delivery) })
     });
     const receipt = await response.json();
     if (!response.ok) throw new Error(receipt.error);

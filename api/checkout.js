@@ -3,7 +3,7 @@ const skus = new Set(['basic', 'plus', 'premium', 'spare-brush', 'heavy-brush', 
 
 function validCheckout(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body) ||
-      Object.keys(body).length !== 6 || typeof body.requestId !== 'string' || !UUID_V4.test(body.requestId) ||
+      Object.keys(body).length !== 7 || typeof body.requestId !== 'string' || !UUID_V4.test(body.requestId) ||
       !['locker', 'courier'].includes(body.delivery) ||
       !['blik', 'transfer', 'card', 'cod'].includes(body.payment) ||
       ![null, 'CLEAN10'].includes(body.coupon) ||
@@ -18,6 +18,29 @@ function validCheckout(body) {
     seen.add(item.sku);
     return true;
   });
+}
+
+function normalizeRecipient(input, delivery) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const limits = { name: 100, email: 254, phone: 24, ...(delivery === 'locker'
+    ? { lockerCode: 24 } : { street: 140, postalCode: 6, city: 100 }) };
+  if (Object.keys(input).length !== Object.keys(limits).length) return null;
+
+  const recipient = {};
+  for (const [field, limit] of Object.entries(limits)) {
+    const value = input[field];
+    if (typeof value !== 'string' || /[\x00-\x1f\x7f]/.test(value)) return null;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > limit) return null;
+    recipient[field] = trimmed;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient.email) ||
+      !/^\+?[0-9][0-9 ()-]{6,22}$/.test(recipient.phone)) return null;
+  if (delivery === 'locker') {
+    recipient.lockerCode = recipient.lockerCode.toUpperCase();
+    if (!/^[A-Z0-9-]{3,24}$/.test(recipient.lockerCode)) return null;
+  } else if (!/^\d{2}-\d{3}$/.test(recipient.postalCode)) return null;
+  return recipient;
 }
 
 module.exports = async function checkout(req, res) {
@@ -46,12 +69,15 @@ module.exports = async function checkout(req, res) {
   const body = req.body;
   if (!validCheckout(body)) return res.status(400).json({ error: 'invalid_request' });
 
+  const recipient = normalizeRecipient(body.recipient, body.delivery);
+  if (!recipient) return res.status(400).json({ error: 'invalid_recipient' });
+
   try {
     const headers = { apikey: DROP_STAGING_SERVICE_KEY, 'Content-Type': 'application/json' };
     if (!DROP_STAGING_SERVICE_KEY.startsWith('sb_secret_')) {
       headers.Authorization = 'Bearer ' + DROP_STAGING_SERVICE_KEY;
     }
-    const url = new URL('/rest/v1/rpc/drop_create_cleanpro_test_order', DROP_STAGING_SUPABASE_URL);
+    const url = new URL('/rest/v1/rpc/drop_create_cleanpro_test_order_with_delivery', DROP_STAGING_SUPABASE_URL);
     const response = await fetch(url, {
       method: 'POST',
       headers,
@@ -61,13 +87,14 @@ module.exports = async function checkout(req, res) {
         p_delivery: body.delivery,
         p_payment: body.payment,
         p_coupon: body.coupon,
-        p_expected_total_grosz: body.expectedTotalGrosz
+        p_expected_total_grosz: body.expectedTotalGrosz,
+        p_recipient: recipient
       }),
       redirect: 'error',
       signal: AbortSignal.timeout(8000)
     });
     if (!response.ok) {
-      const errors = { 409: 'idempotency_conflict', 412: 'price_changed', 422: 'items_unavailable' };
+      const errors = { 400: 'invalid_recipient', 409: 'idempotency_conflict', 412: 'price_changed', 422: 'items_unavailable' };
       const error = errors[response.status];
       return res.status(error ? response.status : 502).json({ error: error || 'database_unavailable' });
     }
